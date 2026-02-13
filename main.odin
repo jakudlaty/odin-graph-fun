@@ -117,7 +117,14 @@ remove_connection :: proc(particles: ^[dynamic]Particle, mouse_p: rl.Vector2) {
   }
 }
 
-update_physics :: proc(particles: ^[dynamic]Particle, target_dist: f32) {
+AppState :: struct {
+  window_width:  i32,
+  window_height: i32,
+  target_dist:   f32,
+  slider_rect:   rl.Rectangle,
+}
+
+update_physics :: proc(particles: ^[dynamic]Particle, state: AppState) {
   // 1. Global repulsion & Jitter
   for i in 0..<len(particles) {
     for j in i+1..<len(particles) {
@@ -132,10 +139,10 @@ update_physics :: proc(particles: ^[dynamic]Particle, target_dist: f32) {
         q.vel -= {f32(rl.GetRandomValue(-5, 5)) * 0.1, f32(rl.GetRandomValue(-5, 5)) * 0.1}
       }
 
-      if dist == 0 || dist >= target_dist do continue
+      if dist == 0 || dist >= state.target_dist do continue
 
       dir := diff / dist
-      force_mag := (dist - target_dist) * 0.0005
+      force_mag := (dist - state.target_dist) * 0.0005
       
       p.vel += dir * force_mag
       q.vel -= dir * force_mag
@@ -148,23 +155,27 @@ update_physics :: proc(particles: ^[dynamic]Particle, target_dist: f32) {
       q := particles[conn_idx]
       diff := q.pos - p.pos
       dist := rl.Vector2Length(diff)
-      if dist <= target_dist do continue
+      if dist <= state.target_dist do continue
       
-      p.vel += (diff / dist) * (dist - target_dist) * 0.0005
+      p.vel += (diff / dist) * (dist - state.target_dist) * 0.0005
     }
   }
 
   // 3. Boundaries & Integration
+  width  := f32(state.window_width)
+  height := f32(state.window_height)
+  center := rl.Vector2{width * 0.5, height * 0.5}
+
   for &p in particles {
-    if p.pos.x < 0 || p.pos.x > 1920 || p.pos.y < 0 || p.pos.y > 1080 {
-      p.vel += rl.Vector2Normalize(rl.Vector2{960, 540} - p.pos) * 0.5
+    if p.pos.x < 0 || p.pos.x > width || p.pos.y < 0 || p.pos.y > height {
+      p.vel += rl.Vector2Normalize(center - p.pos) * 0.5
     }
     p.vel *= 0.99
     p.pos += p.vel
   }
 }
 
-draw_scene :: proc(particles: [dynamic]Particle, target_dist: f32, slider_rect: rl.Rectangle) {
+draw_scene :: proc(particles: [dynamic]Particle, state: AppState) {
   rl.BeginDrawing()
   rl.ClearBackground(rl.RAYWHITE)
   
@@ -175,7 +186,7 @@ draw_scene :: proc(particles: [dynamic]Particle, target_dist: f32, slider_rect: 
       
       q := particles[conn_idx]
       dist := rl.Vector2Distance(p.pos, q.pos)
-      tension := math.clamp(math.abs(dist - target_dist) / target_dist, 0, 1)
+      tension := math.clamp(math.abs(dist - state.target_dist) / state.target_dist, 0, 1)
       
       color := rl.Color{
         u8(200 + 55 * tension),
@@ -193,10 +204,10 @@ draw_scene :: proc(particles: [dynamic]Particle, target_dist: f32, slider_rect: 
   }
 
   // UI Slider
-  rl.DrawRectangleRec(slider_rect, rl.LIGHTGRAY)
-  handle_x := slider_rect.x + (target_dist - 50.0) / (500.0 - 50.0) * slider_rect.width
-  rl.DrawRectangleRec({handle_x - 5, slider_rect.y - 5, 10, 30}, rl.DARKGRAY)
-  rl.DrawText(rl.TextFormat("Distance: %.0f", target_dist), i32(slider_rect.x + slider_rect.width + 10), 20, 20, rl.BLACK)
+  rl.DrawRectangleRec(state.slider_rect, rl.LIGHTGRAY)
+  handle_x := state.slider_rect.x + (state.target_dist - 50.0) / (500.0 - 50.0) * state.slider_rect.width
+  rl.DrawRectangleRec({handle_x - 5, state.slider_rect.y - 5, 10, 30}, rl.DARKGRAY)
+  rl.DrawText(rl.TextFormat("Distance: %.0f", state.target_dist), i32(state.slider_rect.x + state.slider_rect.width + 10), 20, 20, rl.BLACK)
 
   // Controls Overlay
   controls_y : i32 = 60
@@ -209,29 +220,36 @@ draw_scene :: proc(particles: [dynamic]Particle, target_dist: f32, slider_rect: 
 
 main :: proc() {
   particles : [dynamic]Particle
-  target_dist : f32 = 100.0
+  state := AppState{
+    window_width = 1920,
+    window_height = 1080,
+    target_dist = 100.0,
+    slider_rect = {20, 20, 300, 20},
+  }
   slider_dragging := false
-  slider_rect := rl.Rectangle{20, 20, 300, 20}
 
-  rl.InitWindow(1920, 1080, "graph-fun")
+  rl.SetConfigFlags({.WINDOW_RESIZABLE})
+  rl.InitWindow(state.window_width, state.window_height, "graph-fun")
   rl.SetTargetFPS(60)
   
   for !rl.WindowShouldClose() {
+    state.window_width = rl.GetScreenWidth()
+    state.window_height = rl.GetScreenHeight()
     mouse_p := rl.GetMousePosition()
 
     // Slider Logic
-    if rl.IsMouseButtonPressed(.LEFT) && rl.CheckCollisionPointRec(mouse_p, slider_rect) {
+    if rl.IsMouseButtonPressed(.LEFT) && rl.CheckCollisionPointRec(mouse_p, state.slider_rect) {
       slider_dragging = true
     }
     if !rl.IsMouseButtonDown(.LEFT) {
       slider_dragging = false
     }
     if slider_dragging {
-      target_dist = math.clamp(50.0 + (mouse_p.x - slider_rect.x) / slider_rect.width * 450.0, 50.0, 500.0)
+      state.target_dist = math.clamp(50.0 + (mouse_p.x - state.slider_rect.x) / state.slider_rect.width * 450.0, 50.0, 500.0)
     }
 
     // Input Logic
-    if rl.IsMouseButtonPressed(.LEFT) && !rl.CheckCollisionPointRec(mouse_p, slider_rect) {
+    if rl.IsMouseButtonPressed(.LEFT) && !rl.CheckCollisionPointRec(mouse_p, state.slider_rect) {
       add_particle(&particles, mouse_p)
     }
     if rl.IsMouseButtonPressed(.RIGHT) {
@@ -245,7 +263,7 @@ main :: proc() {
       clear(&particles)
     }
 
-    update_physics(&particles, target_dist)
-    draw_scene(particles, target_dist, slider_rect)
+    update_physics(&particles, state)
+    draw_scene(particles, state)
   }
 }

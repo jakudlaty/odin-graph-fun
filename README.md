@@ -34,9 +34,4 @@ graph-fun.exe
 | **Slider** | Change equilibrium distance |
 | **R / C** | **Reset** everything (Nuclear option!) |
 
-## 🚀 Fun Experiments to Try
-1. **The Web**: Connect many nodes and watch them settle into a beautiful lattice.
-2. **The Stress Test**: Set the distance slider to the minimum and watch the graph crumble under pressure.
-3. **The Expansion**: Set distance to 500 and watch your structure explode into a giant network.
-
 Have fun playing with **graph-fun**! 🎢
