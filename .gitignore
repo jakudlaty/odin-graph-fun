@@ -1,0 +1,11 @@
+# Build artifacts
+graph-fun
+graph-fun.exe
+odin-test
+odin-test-linux
+odin-test-windows.exe
+
+# Odin temporary files
+*.bin
+*.pdb
+*.ilk
